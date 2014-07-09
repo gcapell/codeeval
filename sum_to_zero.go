@@ -58,7 +58,7 @@ func nSumZero(line string) int {
 
 	for pos, n1 := range ns {
 		for off, n2 := range ns[pos+1:] {
-			sum2[n1+n2] = append(sum2[n1+n2], []int{pos, pos+1+off})
+			sum2[n1+n2] = append(sum2[n1+n2], []int{pos, pos + 1 + off})
 		}
 	}
 

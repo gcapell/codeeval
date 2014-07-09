@@ -10,7 +10,6 @@ import (
 	"strings"
 )
 
-
 func main() {
 	for line := range linesFromFilename() {
 		fmt.Println(nCoins(atoi(line)))
@@ -18,15 +17,14 @@ func main() {
 }
 
 func nCoins(n int) int {
-	count := n/5
+	count := n / 5
 	n -= count * 5
-	if n>=3 {
+	if n >= 3 {
 		n -= 3
 		count++
 	}
 	return count + n
 }
-
 
 func atoi(s string) int {
 	n, err := strconv.Atoi(s)

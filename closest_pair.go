@@ -28,13 +28,13 @@ func closestPair(ps []point) float64 {
 		for j := firstPlausible; j < eval; j++ {
 			if ps[eval].x-ps[j].x > minDistance {
 				firstPlausible = j + 1
-			//	log.Println("firstPlausible->", firstPlausible)
+				//	log.Println("firstPlausible->", firstPlausible)
 				continue
 			}
 			d := ps[j].dist(ps[eval])
 			if d < minDistance {
 				minDistance = d
-			//	log.Println("minDistance->", d, eval, j)
+				//	log.Println("minDistance->", d, eval, j)
 			}
 		}
 	}

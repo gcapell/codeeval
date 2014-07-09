@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/big"
 	"os"
 	"strconv"
 	"strings"
-	"math/big"
 )
 
 func main() {
@@ -26,10 +26,10 @@ func main() {
 		lookup[n] = ""
 	}
 
-	a , b := big.NewInt(1), big.NewInt(1)
-	
+	a, b := big.NewInt(1), big.NewInt(1)
+
 	for j := 1; j <= max; j++ {
-		c := b.Add(a,b)
+		c := b.Add(a, b)
 		a, b = c, a
 		if _, ok := lookup[j]; ok {
 			lookup[j] = b.String()

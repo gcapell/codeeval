@@ -129,7 +129,7 @@ func parseCard(s string) (int, rune) {
 
 func detectStraight(c []int) bool {
 	sort.Sort(Descending(c))
-	if len(c)<5 {
+	if len(c) < 5 {
 		return false
 	}
 	for j := 1; j < 5; j++ {

@@ -79,7 +79,7 @@ func prng(a, b, c, r, k int) chan int {
 	go func() {
 		ch <- a
 		val := a
-		for j := 0; j<k; j++{
+		for j := 0; j < k; j++ {
 			val = (b*val + c) % r
 			ch <- val
 		}

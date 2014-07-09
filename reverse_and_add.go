@@ -6,8 +6,8 @@ import (
 	"io"
 	"log"
 	"os"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 func main() {
@@ -19,7 +19,7 @@ func main() {
 
 func reverseAndAdd(n int64) (int, int64) {
 	orig := n
-	for j :=0; j<100; j++ {
+	for j := 0; j < 100; j++ {
 		r := reverse(n)
 		// fmt.Println(r, n)
 		if r == n {
@@ -28,14 +28,14 @@ func reverseAndAdd(n int64) (int, int64) {
 		n += r
 	}
 	log.Fatal("not found", n, orig)
-	return 0,0
+	return 0, 0
 }
 
 func reverse(n int64) int64 {
-	var r,d int64
-	for n>0 {
+	var r, d int64
+	for n > 0 {
 		d, n = n%10, n/10
-		r = r*10 +d
+		r = r*10 + d
 	}
 	return r
 }
@@ -47,7 +47,6 @@ func atoi(s string) int {
 	}
 	return n
 }
-
 
 func linesFromFilename() chan string {
 	if len(os.Args) != 2 {

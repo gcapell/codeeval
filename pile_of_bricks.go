@@ -27,7 +27,7 @@ func main() {
 }
 
 func csv(a []int) string {
-	s := make([]string,len(a))
+	s := make([]string, len(a))
 	for pos, n := range a {
 		s[pos] = strconv.Itoa(n)
 	}
@@ -83,7 +83,7 @@ func fitList(h hole, bricks []brick) []int {
 		}
 	}
 	sort.Ints(reply)
-	
+
 	return reply
 }
 

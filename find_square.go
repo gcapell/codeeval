@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
-	"regexp"
-	"math"
 )
 
 func main() {
@@ -18,12 +18,12 @@ func main() {
 	}
 }
 
-type point struct {x,y float64}
+type point struct{ x, y float64 }
 
 func (p point) equals(p2 point) bool {
 	dist := math.Sqrt(
 		math.Pow(p.x-p2.x, 2) +
-		math.Pow(p.y-p2.y, 2))
+			math.Pow(p.y-p2.y, 2))
 	return dist < 0.01
 }
 
@@ -34,24 +34,24 @@ func parse(line string) []point {
 		log.Fatal("expected 4 points, got %q", matches)
 	}
 	reply := make([]point, len(matches))
-	for pos, match  := range matches {
-		reply[pos] = point { atof(match[1]), atof(match[2])}
+	for pos, match := range matches {
+		reply[pos] = point{atof(match[1]), atof(match[2])}
 	}
 	return reply
 }
 
-func isSquare(p[]point) bool {
-	c := point {
-		(p[0].x + p[1].x + p[2].x + p[3].x)/4,
-		(p[0].y + p[1].y + p[2].y + p[3].y)/4,
+func isSquare(p []point) bool {
+	c := point{
+		(p[0].x + p[1].x + p[2].x + p[3].x) / 4,
+		(p[0].y + p[1].y + p[2].y + p[3].y) / 4,
 	}
 	dx := p[0].x - c.x
 	dy := p[0].y - c.y
-	
-	if dx*dx + dy * dy < 0.01 {
+
+	if dx*dx+dy*dy < 0.01 {
 		return false
 	}
-	
+
 	predicted := []point{
 		point{c.x + dy, c.y - dx},
 		point{c.x - dx, c.y - dy},
@@ -60,23 +60,23 @@ func isSquare(p[]point) bool {
 	return samePoints(predicted, p[1:])
 }
 
-func samePoints(a,b []point) bool {
+func samePoints(a, b []point) bool {
 	if len(a) != len(b) {
 		return false
 	}
 	used := make(map[int]bool)
-	search:
+search:
 	for _, p := range a {
 		for pos, p2 := range b {
 			if used[pos] {
-				continue 
+				continue
 			}
 			if p.equals(p2) {
-				used[pos]=true
+				used[pos] = true
 				continue search
-			} 
+			}
 		}
-		
+
 		return false
 	}
 	return true

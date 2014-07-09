@@ -6,8 +6,8 @@ import (
 	"io"
 	"log"
 	"os"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 func main() {
@@ -18,8 +18,8 @@ func main() {
 
 func bitcount(n int) int {
 	bits := 0
-	for n>0 {
-		bits += n&1
+	for n > 0 {
+		bits += n & 1
 		n >>= 1
 	}
 	return bits
@@ -55,4 +55,3 @@ func intsFromFilename() chan int {
 	}()
 	return c
 }
-

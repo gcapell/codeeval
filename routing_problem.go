@@ -12,14 +12,13 @@ import (
 func main() {
 	ch := linesFromFilename()
 	netLine := <-ch
-	p := parser{netLine,0}
+	p := parser{netLine, 0}
 	net := p.net()
-	for line := range  ch {
+	for line := range ch {
 		f := strings.Fields(line)
 		fmt.Println(paths(net, f[0], f[1]))
 	}
 }
-
 
 type Net map[int][]port
 
@@ -27,7 +26,7 @@ func (p *parser) net() Net {
 	var net Net = make(map[int][]port)
 	p.skip("{")
 	nodes := make(map[int][]port)
-	for node, ports, ok := p.node(); ok;  {
+	for node, ports, ok := p.node(); ok; {
 		net[node] = ports
 	}
 	p.skip("}")
@@ -37,7 +36,7 @@ func (p *parser) net() Net {
 func (p *parser) node() (int, []port, bool) {
 	n, ok := p.number()
 	if !ok {
-		return 0,nil, false
+		return 0, nil, false
 	}
 	p.skip(":")
 	nets := p.netList()
@@ -48,7 +47,7 @@ func (p *parser) node() (int, []port, bool) {
 func (p *parser) netList() []port {
 	p.skip("[")
 	ports := make([]port)
-	for p.peek()=="'" {
+	for p.peek() == "'" {
 		ports = append(ports, p.port())
 		p.skipMaybe(",")
 	}
@@ -57,19 +56,19 @@ func (p *parser) netList() []port {
 }
 
 type port struct {
-	net uint32
+	net  uint32
 	mask uint8
 }
 
 type parser struct {
-	s string
+	s   string
 	pos int
 }
 
 func (p *parser) skip(string) {
 }
 
-func (p * parser) number() (int, bool) {
+func (p *parser) number() (int, bool) {
 }
 
 func (p *parser) skipMaybe(s string) {
@@ -77,7 +76,6 @@ func (p *parser) skipMaybe(s string) {
 
 func (p *parser) port() string {
 }
-
 
 func paths(n *net, src, dst string) string {
 	fmt.Println("paths", n, src, dst)

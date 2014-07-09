@@ -17,7 +17,7 @@ func main() {
 	for line := range linesFromFilename() {
 		result := fmt.Sprintf("%.5f", calculator(line))
 
-		result = strings.TrimRight(result, "0")	// BUG! 10 -> 1 :-(
+		result = strings.TrimRight(result, "0") // BUG! 10 -> 1 :-(
 		result = strings.TrimRight(result, ".")
 		fmt.Println(result)
 	}
@@ -263,7 +263,7 @@ func linesFromFilename() chan string {
 				break
 			}
 			line = strings.TrimSpace(line)
-			if len(line)>0 {
+			if len(line) > 0 {
 				c <- line
 			}
 		}

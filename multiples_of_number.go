@@ -20,7 +20,7 @@ func multiple(a, b int) int {
 	m := a & ^(b - 1)
 	if m == a {
 		return m
-	} 
+	}
 	return m + b
 }
 

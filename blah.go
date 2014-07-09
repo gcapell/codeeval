@@ -3,11 +3,11 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
-	"log"
 )
 
 func main() {

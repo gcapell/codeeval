@@ -56,7 +56,7 @@ func main() {
 }
 
 func convertMorse(line string) string {
-	convertedWords := make([]string,0)
+	convertedWords := make([]string, 0)
 
 	words := strings.Split(line, "  ")
 	for _, word := range words {
