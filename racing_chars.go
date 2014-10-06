@@ -48,16 +48,10 @@ func near(a, check int) bool {
 }
 
 func main() {
-	if len(os.Args) != 2 {
-		log.Fatal("expected filename")
-	}
-	f, err := os.Open(os.Args[1])
-	if err != nil {
-		log.Fatal(err)
-	}
-	scanner := bufio.NewScanner(f)
 	lastRow := -1
 	out := ""
+	f, _ := os.Open(os.Args[1])
+	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		out, lastRow = steer(scanner.Text(), lastRow)
 		fmt.Println(out)
