@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime/pprof"
 )
 
 var (
-	size, totalCells int
-	neighbourSpace   [8]square
-	neighbourDelta   = []struct{ dx, dy int }{
+	profiling      = false
+	size           int8
+	neighbourSpace [8]square
+	neighbourDelta = []struct{ dx, dy int8 }{
 		{-1, -1}, {-1, 0}, {-1, 1},
 		{0, -1} /* {0,0} */, {0, 1},
 		{1, -1}, {1, 0}, {1, 1},
@@ -18,7 +20,7 @@ var (
 	boardA, boardB board
 )
 
-type square struct{ x, y int }
+type square struct{ x, y int8 }
 
 func (s square) neighbours() []square {
 	reply := neighbourSpace[:0]
@@ -40,12 +42,12 @@ type board struct {
 	live  map[square]bool
 }
 
-var rows int
+var rows int8
 
 func addRow(line string) {
 	for x, r := range line {
 		if r == '*' {
-			boardA.live[square{x, rows}] = true
+			boardA.live[square{int8(x), rows}] = true
 		}
 	}
 	rows++
@@ -61,8 +63,8 @@ func run(iterations int) *board {
 }
 
 func (b *board) step() {
-	b.live = make(map[square]bool, totalCells)
-	dead := make(map[square]int, totalCells)
+	b.live = make(map[square]bool, 0)
+	dead := make(map[square]int, 0)
 	for cell, _ := range b.other.live {
 		live := 0
 		for _, neighbour := range cell.neighbours() {
@@ -89,12 +91,18 @@ var glyph = map[bool]rune{
 }
 
 func (b *board) out() {
-	for row := 0; row < size; row++ {
-		for col := 0; col < size; col++ {
+	for row := int8(0); row < size; row++ {
+		for col := int8(0); col < size; col++ {
 			fmt.Printf("%c", glyph[b.live[square{col, row}]])
 		}
 		fmt.Println()
 	}
+}
+
+func init() {
+	boardA.other = &boardB
+	boardB.other = &boardA
+	boardA.live = make(map[square]bool, 0)
 }
 
 func main() {
@@ -105,9 +113,16 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	boardA.other = &boardB
-	boardB.other = &boardA
-	boardA.live = make(map[square]bool)
+	defer f.Close()
+
+	if profiling {
+		cf, err := os.Create("cpu.out")
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(cf)
+		defer pprof.StopCPUProfile()
+	}
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -117,7 +132,14 @@ func main() {
 		log.Fatal(err)
 	}
 	size = rows
-	fmt.Println("size", size)
-	totalCells = size * size
 	run(10).out()
+
+	if profiling {
+		pf, err := os.Create("mem.out")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer pf.Close()
+		pprof.WriteHeapProfile(pf)
+	}
 }
