@@ -8,16 +8,15 @@ import (
 	"strings"
 )
 
-func readMore(line string) string {
-	if len(line) <= 55 {
-		return line
-	}
-	trimmed := line[:40]
-	space := strings.LastIndex(trimmed, " ")
-	if space == -1 {
-		return trimmed
-	}
-	return trimmed[:space] + "... <Read More>"
+func withoutRepetitions(line string) string {
+	var prev rune
+	return strings.Map(func(r rune) rune {
+		if r == prev {
+			return -1
+		}
+		prev=r
+		return r
+	}, line)
 }
 
 func main() {
@@ -30,7 +29,7 @@ func main() {
 	}
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		fmt.Println(readMore(scanner.Text()))
+		fmt.Println(withoutRepetitions(scanner.Text()))
 	}
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
