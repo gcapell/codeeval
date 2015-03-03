@@ -9,26 +9,82 @@ import (
 	"strings"
 )
 
+type edgelist map[int][]int
+type pair struct {a,b int}
+
+func maybeLink(a,b int, chunks []string, forward, backward edgelist) {
+	if link(chunks[a], chunks[b]) {
+		forward[a] = append(forward[a], b)
+		backward[b] = append(backward[b], a)
+	}
+}
+
+func reduce(forward, backward edgelist) (map[int]bool, map[pair]int) {
+	skipped := make(map[int]bool)
+	replacements := make(map[pair]int)
+	for k := range forward {
+		if skipped[k] {
+			continue
+		}
+		if ! (len(forward[k]) == 1 && len(backward[k]) ==1) {
+			continue
+		}
+		s := k
+		next := k
+		for len(forward[s]) == 1 && len(backward[s]) ==1 {
+			skipped[s]=true
+			next =s
+			s = backward[s][0]
+		}
+		e := forward[k][0]
+		for len(forward[e]) == 1 && len(backward[e]) ==1 {
+			skipped[e] = true
+			e = forward[e][0]
+		}
+		replaceLink(forward[s], next, e)
+		replacements[pair{s,e}] = next
+	}
+	return skipped, replacements
+}
+
+func replaceLink(a []int, orig, replacement int) {
+	for k,v := range a{
+		if v == orig {
+			a[k] = replacement
+			return
+		}
+	}
+	log.Fatal("couldn't find %v in %v", orig, a)
+}
 func glueShredded(line string) string {
 	line = strings.Trim(strings.TrimSpace(line), "|")
 	chunks := strings.Split(line, "|")
 
-	edges := make(map[int][]int)
+	forward, backward := make(map[int][]int), make(map[int][]int)
 	for i := 0; i < len(chunks)-1; i++ {
 		for j := i + 1; j < len(chunks); j++ {
-			if link(chunks[i], chunks[j]) {
-				edges[i] = append(edges[i], j)
-			}
-			if link(chunks[j], chunks[i]) {
-				edges[j] = append(edges[j], i)
-			}
+			maybeLink(i, j, chunks, forward, backward)
+			maybeLink(j, i, chunks, forward, backward)
 		}
 	}
 	
-	fmt.Printf("edges %#v\n", edges)
-	return ""
+	skipped, _ := reduce(forward, backward)
+	// fmt.Printf("skipped %v\n", skipped)
+	// fmt.Printf("expansions %v\n", expansions)
 
-	path := hamiltonian(edges, len(chunks))
+	fmt.Printf("digraph T {")
+	for k,vs := range forward {
+		if skipped[k] {
+			continue
+		}
+		for _, v := range vs {
+			fmt.Printf("%d->%d;", k, v)
+		}
+	}
+	fmt.Println("}")
+
+	return ""
+	path := hamiltonian(forward, len(chunks))
 	var buf bytes.Buffer
 
 	for _, p := range path {
