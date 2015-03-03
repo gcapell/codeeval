@@ -10,45 +10,52 @@ import (
 )
 
 type edgelist map[int][]int
-type pair struct {a,b int}
+type pair struct{ a, b int }
 
-func maybeLink(a,b int, chunks []string, forward, backward edgelist) {
+func maybeLink(a, b int, chunks []string, forward, backward edgelist) {
 	if link(chunks[a], chunks[b]) {
 		forward[a] = append(forward[a], b)
 		backward[b] = append(backward[b], a)
 	}
 }
 
-func reduce(forward, backward edgelist) (map[int]bool, map[pair]int) {
+func reduce(forward, backward edgelist) (edgelist, map[pair]int) {
 	skipped := make(map[int]bool)
-	replacements := make(map[pair]int)
+	longcuts := make(map[pair]int)
 	for k := range forward {
 		if skipped[k] {
 			continue
 		}
-		if ! (len(forward[k]) == 1 && len(backward[k]) ==1) {
+		if !(len(forward[k]) == 1 && len(backward[k]) == 1) {
 			continue
 		}
 		s := k
 		next := k
-		for len(forward[s]) == 1 && len(backward[s]) ==1 {
-			skipped[s]=true
-			next =s
+		for len(forward[s]) == 1 && len(backward[s]) == 1 {
+			skipped[s] = true
+			next = s
 			s = backward[s][0]
 		}
 		e := forward[k][0]
-		for len(forward[e]) == 1 && len(backward[e]) ==1 {
+		for len(forward[e]) == 1 && len(backward[e]) == 1 {
 			skipped[e] = true
 			e = forward[e][0]
 		}
 		replaceLink(forward[s], next, e)
-		replacements[pair{s,e}] = next
+		longcuts[pair{s, e}] = next
 	}
-	return skipped, replacements
+	replaced := make(map[int][]int)
+	for k, v := range forward {
+		if skipped[k] {
+			continue
+		}
+		replaced[k] = v
+	}
+	return replaced, longcuts
 }
 
 func replaceLink(a []int, orig, replacement int) {
-	for k,v := range a{
+	for k, v := range a {
 		if v == orig {
 			a[k] = replacement
 			return
@@ -56,6 +63,36 @@ func replaceLink(a []int, orig, replacement int) {
 	}
 	log.Fatal("couldn't find %v in %v", orig, a)
 }
+
+func digraph(forward edgelist) {
+	fmt.Printf("digraph T {")
+	for k, vs := range forward {
+		for _, v := range vs {
+			fmt.Printf("%d->%d;", k, v)
+		}
+	}
+	fmt.Println("}")
+}
+
+func expandPath(shortPath []int, edges edgelist, longcuts map[pair]int) []int {
+	var path []int
+	prev := -1
+	for _, n := range shortPath {
+		if n2, ok := longcuts[pair{prev, n}]; ok {
+			for n2 != n {
+				path = append(path, n2)
+				if len(edges[n2]) != 1 {
+					log.Fatal("bad longcut", n2, n)
+				}
+				n2 = edges[n2][0]
+			}
+		}
+		path = append(path, n)
+		prev = n
+	}
+	return path
+}
+
 func glueShredded(line string) string {
 	line = strings.Trim(strings.TrimSpace(line), "|")
 	chunks := strings.Split(line, "|")
@@ -67,24 +104,13 @@ func glueShredded(line string) string {
 			maybeLink(j, i, chunks, forward, backward)
 		}
 	}
-	
-	skipped, _ := reduce(forward, backward)
-	// fmt.Printf("skipped %v\n", skipped)
-	// fmt.Printf("expansions %v\n", expansions)
 
-	fmt.Printf("digraph T {")
-	for k,vs := range forward {
-		if skipped[k] {
-			continue
-		}
-		for _, v := range vs {
-			fmt.Printf("%d->%d;", k, v)
-		}
-	}
-	fmt.Println("}")
+	replaced, longcuts := reduce(forward, backward)
 
-	return ""
-	path := hamiltonian(forward, len(chunks))
+	shortPath := hamiltonian(replaced)
+
+	path := expandPath(shortPath, forward, longcuts)
+
 	var buf bytes.Buffer
 
 	for _, p := range path {
@@ -95,40 +121,35 @@ func glueShredded(line string) string {
 	return buf.String()
 }
 
-func origin(edges map[int][]int) (int, bool) {
+func origin(edges map[int][]int) (origin, nodes int) {
 	isDst := make(map[int]bool)
-	for _, dsts := range edges {
+	for src, dsts := range edges {
+		if _, ok := isDst[src]; !ok {
+			isDst[src] = false
+		}
 		for _, dst := range dsts {
 			isDst[dst] = true
 		}
 	}
 
-	var o, count int
+	count := 0
 	for src := range edges {
 		if !isDst[src] {
-			o = src
+			origin = src
 			count++
 		}
 	}
-	if count > 1 {
-		log.Fatal("multiple origins", edges)
+	if count != 1 {
+		log.Fatal("origins", count, edges)
 	}
-	return o, count == 1
+	return origin, len(isDst)
 }
 
-func hamiltonian(edges map[int][]int, nodes int) []int {
+func hamiltonian(edges map[int][]int) []int {
+	o, nodes := origin(edges)
 	path := make([]int, 0, nodes)
 	seen := make(map[int]bool)
-	if o, ok := origin(edges); ok {
-		return traverse(append(path, o), edges, seen)
-	}
-
-	for e := range edges {
-		if p := traverse(append(path, e), edges, seen); p!= nil {
-			return p
-		}
-	}
-	return nil
+	return traverse(append(path, o), edges, seen)
 }
 
 func traverse(path []int, edges map[int][]int, visited map[int]bool) []int {
