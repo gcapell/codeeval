@@ -3,108 +3,80 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"log"
 	"os"
+	"strconv"
 	"strings"
+	"net"
 )
 
+type ip uint32
+func (k ip) String() string {
+	return fmt.Sprintf("%x", uint32(k))
+}
+
+func parseNet(line string) int {
+	line = strings.Trim(line, " {}")
+	parts := strings.Split(line, "]")
+	
+	netToNode := make (map[ip][]int)
+	nodeToNet := make(map[int][]ip)
+	for _, p := range parts {
+		subParts := strings.Split(p, ":")
+		if len(subParts)<2 {
+			continue
+		}
+		id := atoi(strings.Trim(subParts[0], ", "))
+		nets := strings.Split(strings.Trim(subParts[1], " ["), ",")
+		for _, n := range nets {
+			ipBytes := parseNetString(strings.Trim(n, " '"))
+			key := ip(uint32(ipBytes[0])<<24 | uint32(ipBytes[1]) <<16 | uint32(ipBytes[2])<<8 | uint32(ipBytes[3]))
+			netToNode[key] = append(netToNode[key], id)
+			nodeToNet[id] = append(nodeToNet[id], key)
+		}
+	}
+	fmt.Println("netToNode", netToNode)
+	for _, nodes := range netToNode {
+		for _, n := range nodes {
+			fmt.Printf("%d --", n)
+		}
+		fmt.Println()
+	}
+	fmt.Println("nodeToNet", nodeToNet)
+	return 0
+}
+
+func parseNetString(s string) net.IP{
+	parts := strings.Split(s, "/")
+	ip := net.ParseIP(parts[0])
+	if ip == nil {
+		log.Fatalf("parse(%s)->nil", parts[0])
+	}
+	return ip.Mask(net.CIDRMask(atoi(parts[1]), 32))
+}
+
+
+func atoi(s string) int {
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return n
+}
+
 func main() {
-	ch := linesFromFilename()
-	netLine := <-ch
-	p := parser{netLine, 0}
-	net := p.net()
-	for line := range ch {
-		f := strings.Fields(line)
-		fmt.Println(paths(net, f[0], f[1]))
-	}
-}
-
-type Net map[int][]port
-
-func (p *parser) net() Net {
-	var net Net = make(map[int][]port)
-	p.skip("{")
-	nodes := make(map[int][]port)
-	for node, ports, ok := p.node(); ok; {
-		net[node] = ports
-	}
-	p.skip("}")
-	return net
-}
-
-func (p *parser) node() (int, []port, bool) {
-	n, ok := p.number()
-	if !ok {
-		return 0, nil, false
-	}
-	p.skip(":")
-	nets := p.netList()
-	p.skipMaybe(",")
-	return n, nets, true
-}
-
-func (p *parser) netList() []port {
-	p.skip("[")
-	ports := make([]port)
-	for p.peek() == "'" {
-		ports = append(ports, p.port())
-		p.skipMaybe(",")
-	}
-	p.skip("]")
-	return ports
-}
-
-type port struct {
-	net  uint32
-	mask uint8
-}
-
-type parser struct {
-	s   string
-	pos int
-}
-
-func (p *parser) skip(string) {
-}
-
-func (p *parser) number() (int, bool) {
-}
-
-func (p *parser) skipMaybe(s string) {
-}
-
-func (p *parser) port() string {
-}
-
-func paths(n *net, src, dst string) string {
-	fmt.Println("paths", n, src, dst)
-	return ""
-}
-
-func linesFromFilename() chan string {
 	if len(os.Args) != 2 {
-		log.Fatal("expected 'prog {filename}'")
+		log.Fatal("expected filename")
 	}
 	f, err := os.Open(os.Args[1])
 	if err != nil {
 		log.Fatal(err)
 	}
-	c := make(chan string)
-
-	go func() {
-		reader := bufio.NewReader(f)
-		for {
-			line, err := reader.ReadString('\n')
-			if err != nil {
-				if err != io.EOF {
-					log.Fatal(err)
-				}
-				break
-			}
-			c <- strings.TrimSpace(line)
-		}
-		close(c)
-	}()
-	return c
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		fmt.Println(parseNet(scanner.Text()))
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
+	}
 }
