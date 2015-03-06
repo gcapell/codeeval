@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -16,72 +17,120 @@ func (k ip) String() string {
 	return fmt.Sprintf("%x", uint32(k))
 }
 
-var peers      [][]int
+var (
+	peers      [][]int
+	nodeParent [][]int
+	foundPaths [][]int
+)
 
-func path(src, dst int) string {
+type ByDict [][]int
+
+func (a ByDict) Len() int      { return len(a) }
+func (a ByDict) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ByDict) Less(i, j int) bool {
+	for c := range a[i] {
+		if a[i][c] < a[j][c] {
+			return true
+		}
+		if a[i][c] > a[j][c] {
+			return false
+		}
+	}
+	return false
+}
+
+func path(src, dst int) {
 	if dst >= len(peers) {
-		return "No connection"
+		fmt.Println("No connection")
+		return
 	}
 	// BFS
-	fmt.Println("path", src, dst)
-	q := newQueue(len(peers)*2)
-	seen := map[int]bool{src:true}
+	q := newQueue(len(peers) * 2)
+	seen := map[int]bool{src: true}
+	thisGen := map[int]bool{src: true}
+	oldGen := map[int]bool{src: true}
 	genMarker := -1
 	q.push(src)
 	q.push(genMarker)
-	nodeParent := make([][]int, len(peers))
+	nodeParent = make([][]int, len(peers))
+
 	for {
 		n := q.pop()
-		fmt.Println(q)
 		if n == genMarker {
-			if q.empty() || len(nodeParent[dst]) != 0{
+			if q.empty() || len(nodeParent[dst]) != 0 {
 				break
 			}
 			q.push(genMarker)
+			for k := range thisGen {
+				oldGen[k] = true
+			}
+			thisGen = make(map[int]bool)
 			continue
 		}
 		for _, peer := range peers[n] {
-			nodeParent[peer] = append(nodeParent[peer], n)
+			if !oldGen[peer] {
+				nodeParent[peer] = append(nodeParent[peer], n)
+			}
 			if peer == dst {
 				break
 			}
 			if !seen[peer] {
+				thisGen[peer] = true
 				seen[peer] = true
 				q.push(peer)
 			}
 		}
 	}
-	if len(nodeParent[dst]) == 0 {
-		return "No connection"
-	}
-	fmt.Println("nodeParent", nodeParent)
-	
-	paths(dst, src, nodeParent, make([]int,0))
-	return ""
-	
-	var reply []int
-	for n := dst; ; n = nodeParent[n][0] {
-		reply = append(reply, n)
-		if n == src {
-			break
+	if false {
+		fmt.Println("digraph nodeParent {")
+		for n, dsts := range nodeParent {
+			for _, d := range dsts {
+				fmt.Printf("%d -> %d ;\n", n, d)
+			}
 		}
+		fmt.Println("}")
 	}
-	
-	
-	// reverse
-	for i, j := 0, len(reply)-1; i < j; i, j = i+1, j-1 {
-		reply[i], reply[j] = reply[j], reply[i]
+
+	buf := make([]int, len(peers))
+	foundPaths = make([][]int, 0)
+	backpaths(dst, src, buf, 0)
+	sort.Sort(ByDict(foundPaths))
+
+	for n, path := range foundPaths {
+		if n != 0 {
+			fmt.Printf(", ")
+		}
+		fmt.Printf("[")
+		for k, node := range path {
+			if k != 0 {
+				fmt.Printf(", ")
+			}
+			fmt.Printf("%d", node)
+		}
+		fmt.Printf("]")
 	}
-	fmt.Println(src, dst, reply)
-	return ""
+	fmt.Println()
 }
 
-func backpaths(src, dst int, parent [][]int, path []int) {
-	path = append(path, src)
-	if src == dst {
-		fmt.Println(path)
+func reversedCopy(a []int) []int {
+	b := make([]int, len(a))
+	for i, n := range a {
+		b[len(a)-i-1] = n
 	}
-	
+	return b
+}
+
+func backpaths(src, dst int, path []int, depth int) {
+	//fmt.Printf("%sbackpaths(%d,%d,%v), %v\n", strings.Repeat(" ", depth),src, dst, path[:depth], next[src])
+	path[depth] = src
+	depth++
+	if src == dst {
+		foundPaths = append(foundPaths, reversedCopy(path[:depth]))
+		return
+	}
+	for _, n := range nodeParent[src] {
+		backpaths(n, dst, path, depth)
+	}
 }
 
 type queue struct {
@@ -138,7 +187,7 @@ func parseNet(line string) {
 	}
 	peers = make([][]int, len(nodeToNet))
 	for id, nets := range nodeToNet {
-		seen := map[int]bool{id:true}
+		seen := map[int]bool{id: true}
 		for _, net := range nets {
 			for _, other := range netToNode[net] {
 				if seen[other] {
@@ -149,7 +198,6 @@ func parseNet(line string) {
 			}
 		}
 	}
-	fmt.Println("peers", peers)
 }
 
 func parseNetString(s string) ip {
@@ -187,7 +235,7 @@ func main() {
 			continue
 		}
 		chunks := strings.Fields(scanner.Text())
-		fmt.Println(path(atoi(chunks[0]), atoi(chunks[1])))
+		path(atoi(chunks[0]), atoi(chunks[1]))
 	}
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
