@@ -16,12 +16,12 @@ func (k ip) String() string {
 	return fmt.Sprintf("%x", uint32(k))
 }
 
-var (
-	peers      [][]int
-	nodeParent []int
-)
+var peers      [][]int
 
 func path(src, dst int) string {
+	if dst >= len(peers) {
+		return "No connection"
+	}
 	// BFS
 	fmt.Println("path", src, dst)
 	q := newQueue(len(peers)*2)
@@ -29,49 +29,59 @@ func path(src, dst int) string {
 	genMarker := -1
 	q.push(src)
 	q.push(genMarker)
-	var penultimates []int
-	for !q.empty() {
+	nodeParent := make([][]int, len(peers))
+	for {
 		n := q.pop()
 		fmt.Println(q)
 		if n == genMarker {
-			q.push(genMarker)
-			if len(penultimates) != 0 {
+			if q.empty() || len(nodeParent[dst]) != 0{
 				break
 			}
+			q.push(genMarker)
 			continue
 		}
 		for _, peer := range peers[n] {
-			if seen[peer] {
-				continue
-			}
-			seen[peer] = true
-			nodeParent[peer] = n
+			nodeParent[peer] = append(nodeParent[peer], n)
 			if peer == dst {
-				penultimates = append(penultimates, n)
 				break
 			}
-			q.push(peer)
+			if !seen[peer] {
+				seen[peer] = true
+				q.push(peer)
+			}
 		}
 	}
-	if len(penultimates) == 0 {
+	if len(nodeParent[dst]) == 0 {
 		return "No connection"
 	}
-	fmt.Println(penultimates)
+	fmt.Println("nodeParent", nodeParent)
+	
+	paths(dst, src, nodeParent, make([]int,0))
 	return ""
 	
 	var reply []int
-	for n := dst; ; n = nodeParent[n] {
+	for n := dst; ; n = nodeParent[n][0] {
 		reply = append(reply, n)
 		if n == src {
 			break
 		}
 	}
+	
+	
 	// reverse
 	for i, j := 0, len(reply)-1; i < j; i, j = i+1, j-1 {
 		reply[i], reply[j] = reply[j], reply[i]
 	}
 	fmt.Println(src, dst, reply)
 	return ""
+}
+
+func backpaths(src, dst int, parent [][]int, path []int) {
+	path = append(path, src)
+	if src == dst {
+		fmt.Println(path)
+	}
+	
 }
 
 type queue struct {
@@ -127,7 +137,6 @@ func parseNet(line string) {
 		}
 	}
 	peers = make([][]int, len(nodeToNet))
-	nodeParent = make([]int, len(nodeToNet))
 	for id, nets := range nodeToNet {
 		seen := map[int]bool{id:true}
 		for _, net := range nets {
