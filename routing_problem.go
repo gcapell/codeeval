@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"log"
-	"net"
 	"os"
 	"sort"
 	"strconv"
@@ -39,9 +38,11 @@ func (a ByDict) Less(i, j int) bool {
 	return false
 }
 
+const failMsg = "No connection"
+
 func path(src, dst int) {
 	if dst >= len(peers) {
-		fmt.Println("No connection")
+		fmt.Println(failMsg)
 		return
 	}
 	// BFS
@@ -81,16 +82,12 @@ func path(src, dst int) {
 			}
 		}
 	}
-	if false {
-		fmt.Println("digraph nodeParent {")
-		for n, dsts := range nodeParent {
-			for _, d := range dsts {
-				fmt.Printf("%d -> %d ;\n", n, d)
-			}
-		}
-		fmt.Println("}")
-	}
 
+	if len(nodeParent[dst]) == 0 {
+		fmt.Println(failMsg)
+		return
+	}
+	
 	buf := make([]int, len(peers))
 	foundPaths = make([][]int, 0)
 	backpaths(dst, src, buf, 0)
@@ -121,7 +118,6 @@ func reversedCopy(a []int) []int {
 }
 
 func backpaths(src, dst int, path []int, depth int) {
-	//fmt.Printf("%sbackpaths(%d,%d,%v), %v\n", strings.Repeat(" ", depth),src, dst, path[:depth], next[src])
 	path[depth] = src
 	depth++
 	if src == dst {
@@ -172,20 +168,25 @@ func parseNet(line string) {
 	netToNode := make(map[ip][]int)
 	nodeToNet := make(map[int][]ip)
 
+	nodeCount := 0
 	for _, p := range parts {
 		subParts := strings.Split(p, ":")
 		if len(subParts) < 2 {
 			continue
 		}
 		id := atoi(strings.Trim(subParts[0], ", "))
+		nodeCount++
 		nets := strings.Split(strings.Trim(subParts[1], " ["), ",")
 		for _, n := range nets {
+			if len(n) == 0 {
+				continue
+			}
 			key := parseNetString(strings.Trim(n, " '"))
 			netToNode[key] = append(netToNode[key], id)
 			nodeToNet[id] = append(nodeToNet[id], key)
 		}
 	}
-	peers = make([][]int, len(nodeToNet))
+	peers = make([][]int, nodeCount)
 	for id, nets := range nodeToNet {
 		seen := map[int]bool{id: true}
 		for _, net := range nets {
@@ -202,18 +203,21 @@ func parseNet(line string) {
 
 func parseNetString(s string) ip {
 	parts := strings.Split(s, "/")
-	addr := net.ParseIP(parts[0])
-	if addr == nil {
-		log.Fatalf("parse(%s)->nil", parts[0])
+
+	var addr uint32
+	for _, addrPart := range strings.Split(strings.TrimSpace(parts[0]), ".") {
+		addr = (addr << 8) + uint32(atoi(addrPart))
 	}
-	ipBytes := addr.Mask(net.CIDRMask(atoi(parts[1]), 32))
-	return ip(uint32(ipBytes[0])<<24 | uint32(ipBytes[1])<<16 | uint32(ipBytes[2])<<8 | uint32(ipBytes[3]))
+
+	mask := uint32(0xffffffff) << uint32(32-atoi(parts[1]))
+
+	return ip(addr & mask)
 }
 
 func atoi(s string) int {
 	n, err := strconv.Atoi(s)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	return n
 }
