@@ -96,13 +96,14 @@ func (t *trie) remove(word string) []string {
 	return reply
 }
 
-func keys(m map[byte]*trie) string{
+func keys(m map[byte]*trie) string {
 	var s []string
-	for k := range m{
-		s =  append(s, string(k))
+	for k := range m {
+		s = append(s, string(k))
 	}
 	return strings.Join(s, ",")
 }
+
 // words found by adding one letter
 func (t *trie) add(word string) []string {
 	if len(word) == 0 {
@@ -131,14 +132,14 @@ func (t *trie) replace(word string) []string {
 		return nil
 	}
 	var reply []string
-	
+
 	for letter, next := range t.next {
 		var found []string
 		if letter == word[0] {
 			found = next.replace(word[1:])
 		} else {
 			found = next.find(word[1:])
-			
+
 		}
 		reply = append(reply, found...)
 	}
@@ -146,7 +147,7 @@ func (t *trie) replace(word string) []string {
 }
 
 func (t *trie) find(word string) []string {
-	
+
 	for _, r := range word {
 		if t = t.next[byte(r)]; t == nil {
 			return nil
