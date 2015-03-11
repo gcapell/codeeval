@@ -1,34 +1,47 @@
 package main
 
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"log"
+)
+
 type (
 	trie struct {
-		next dict[byte]*trie
+		next map[byte]*trie
 		word string
 	}
-	
-	queue struct {
+
+	queueT struct {
 		head, tail int
-		q []string
+		q          []string
 	}
 )
 
-// length -> trie of words of that length
+
 var (
-	words dict[int]trie
-	queue queue
+	// length -> trie of words of that length
+	words = map[int]*trie {}
+	queue queueT
 )
 
+func (q *queueT) reset()        {}
+func (q *queueT) push(s string) {}
+func (q *queueT) empty() bool   { return true }
+func (q *queueT) pop() string   { return "" }
+
 // size of social network of word.
-func network(word string) {
+func network(word string) int {
 	queue.reset()
-	q.push(word)
-	seen := dict[string]bool {word:true}
-	while !q.empty() {
-		word = q.pop()
-		for _, n := neighbours(word) {
+	queue.push(word)
+	seen := map[string]bool{word: true}
+	for !queue.empty() {
+		word = queue.pop()
+		for _, n := range neighbours(word) {
 			if !seen[n] {
 				seen[n] = true
-				q.push(n)
+				queue.push(n)
 			}
 		}
 	}
@@ -43,18 +56,26 @@ func neighbours(word string) []string {
 		words[len(word)].replace(word))
 }
 
+func concat(a ...[]string) []string {
+	return a[0] // FIXME
+}
+
 // words found by removing one letter
-func (t *trie) remove (word string) []string {
-	if t == nil {return nil}
-	if len(word)==1 { 	return []string{t.word}}
-	
+func (t *trie) remove(word string) []string {
+	if t == nil {
+		return nil
+	}
+	if len(word) == 1 {
+		return []string{t.word}
+	}
+
 	return concat(
 		t.next[word[0]].remove(word[1:]),
 		t.find(word[1:]))
 }
 
 // words found by inserting one letter
-func (t trie) insert (word string) []string {
+func (t *trie) insert(word string) []string {
 	if len(word) == 0 {
 		return []string{t.word}
 	}
@@ -63,22 +84,62 @@ func (t trie) insert (word string) []string {
 		if letter == word[0] {
 			continue
 		}
-		reply = append(reply, next.find(word))
+		reply = append(reply, next.find(word)...)
 	}
-	if next, ok := t.next[word[0]], ok {
-		reply = append(reply, next.insert(word[1:]))
+	if next, ok := t.next[word[0]]; ok {
+		reply = append(reply, next.insert(word[1:])...)
 	}
 	return reply
 }
 
 // words found by replacing one letter
-func (t trie) replace (word string) []string {
+func (t *trie) replace(word string) []string {
+	return nil
 }
 
-func (t trie) contains (word string) bool {
-	
+func (t *trie) contains(word string) bool {
+	return false
+
+}
+func (t *trie) find(word string) []string {
+	return nil
+}
+func (t *trie)add(word string) *trie {
+	return nil	
+}
+
+var dictTerms int
+
+func addDict(s string) {
+	words[len(s)] = words[len(s)].add(s)
 }
 
 func main() {
-	
+	if len(os.Args) != 2 {
+		log.Fatal("expected filename")
+	}
+	f, err := os.Open(os.Args[1])
+	if err != nil {
+		log.Fatal(err)
+	}
+	scanner := bufio.NewScanner(f)
+	readingDict := false
+	var searchTerms []string
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch {
+		case line == "END OF INPUT":
+			readingDict = true
+		case readingDict:
+			addDict(line)
+		default:
+			searchTerms = append(searchTerms, line)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
+	}
+	for _, term := range searchTerms {
+		fmt.Println(term, network(term))
+	}
 }

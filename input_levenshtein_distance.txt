@@ -1,3 +1,7 @@
+recursiveness
+elastic
+macrographies
+END OF INPUT
 aa
 aah
 aahed
