@@ -104,14 +104,16 @@ func (t *trie) contains(word string) bool {
 func (t *trie) find(word string) []string {
 	return nil
 }
-func (t *trie)add(word string) *trie {
-	return nil	
-}
-
-var dictTerms int
-
-func addDict(s string) {
-	words[len(s)] = words[len(s)].add(s)
+func (t *trie)add(word string, letters []byte) *trie {
+	if t == nil {
+		t = &trie {next: make(map[byte]*trie)}
+	}
+	if len(letters) == 0 {
+		t.word = word
+	} else {
+		t.next[letters[0]] = t.next[letters[0]].add(word, letters[1:])
+	}
+	return t
 }
 
 func main() {
@@ -131,7 +133,7 @@ func main() {
 		case line == "END OF INPUT":
 			readingDict = true
 		case readingDict:
-			addDict(line)
+			words[len(line)] = words[len(line)].add(line, []byte(line))
 		default:
 			searchTerms = append(searchTerms, line)
 		}
@@ -139,6 +141,7 @@ func main() {
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println(words)
 	for _, term := range searchTerms {
 		fmt.Println(term, network(term))
 	}
