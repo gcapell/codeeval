@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 )
 
 func main() {
@@ -34,7 +33,9 @@ func main() {
 		log.Fatal(err)
 	}
 	for _, term := range searchTerms {
-		fmt.Println(network(term))
+		seen = make(map[string]bool)
+		network(term)
+		fmt.Println(len(seen))
 	}
 }
 
@@ -43,22 +44,16 @@ func addWord(s string) {
 	words[n] = words[n].addWord(s, []byte(s))
 }
 
-// size of social network of word.
-func network(word string) int {
-	queue.reset()
-	queue.push(word)
-	seen := map[string]bool{word: true}
-	for !queue.empty() {
-		word = queue.pop()
-		for _, n := range neighbours(word) {
-			if !seen[n] {
-				seen[n] = true
-				queue.push(n)
+var seen map[string]bool
 
-			}
+// traverse social network of word.
+func network(word string) {
+	seen[word] = true
+	for _, n := range neighbours(word) {
+		if !seen[n] {
+			network(n)
 		}
 	}
-	return len(seen)
 }
 
 // neightbours returns all the words of edit-distance one from word.
@@ -94,14 +89,6 @@ func (t *trie) remove(word string) []string {
 		reply = append(reply, next.remove(word[1:])...)
 	}
 	return reply
-}
-
-func keys(m map[byte]*trie) string {
-	var s []string
-	for k := range m {
-		s = append(s, string(k))
-	}
-	return strings.Join(s, ",")
 }
 
 // words found by adding one letter
@@ -147,7 +134,6 @@ func (t *trie) replace(word string) []string {
 }
 
 func (t *trie) find(word string) []string {
-
 	for _, r := range word {
 		if t = t.next[byte(r)]; t == nil {
 			return nil
@@ -166,50 +152,4 @@ func (t *trie) addWord(word string, letters []byte) *trie {
 		t.next[letters[0]] = t.next[letters[0]].addWord(word, letters[1:])
 	}
 	return t
-}
-
-func (t *trie) repr(depth int) string {
-	var s string
-	for k, next := range t.next {
-		s += fmt.Sprintf("%s%c\n%s",
-			strings.Repeat(" ", depth), k, next.repr(depth+1))
-	}
-	return s
-}
-
-type queueT struct {
-	head int
-	tail int
-	q    []string
-}
-
-var queue = queueT{q: make([]string, 1000)}
-
-func (q *queueT) reset() {
-	q.head, q.tail = 0, 0
-}
-
-func (q *queueT) growIfFull() {
-	if (q.tail+1)%len(q.q) == q.head {
-		log.Fatal("FIXME: grow")
-	}
-}
-
-func (q *queueT) push(s string) {
-	q.growIfFull()
-	q.q[q.tail] = s
-	q.tail = (q.tail + 1) % len(q.q)
-}
-
-func (q *queueT) empty() bool {
-	return q.tail == q.head
-}
-
-func (q *queueT) pop() string {
-	if q.empty() {
-		log.Fatal("empty pop")
-	}
-	c := q.q[q.head]
-	q.head = (q.head + 1) % len(q.q)
-	return c
 }
