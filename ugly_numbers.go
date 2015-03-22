@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-const size = 720
+const size = 2 * 3 * 5 * 7
 
 func ugly(s string) int {
 	total := 0
@@ -32,7 +32,6 @@ func mods(s string) map[int]int {
 				d[dst2] += cnt
 			}
 		}
-		//fmt.Println(s[:depth], d)
 		modsByDepth[depth] = d
 	}
 	return modsByDepth[len(s)]
