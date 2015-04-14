@@ -20,24 +20,12 @@ type point struct{ lat, long float64 }
 type region struct {
 	radius float64
 	point
+	maxConfirms int
+	marks       []*placemark
 }
 
-type Placemark struct {
-	Id    string `xml:"id,attr"`
-	Name  string `xml:"name"`
-	When  string `xml:"TimeStamp>when"`
-	Where string `xml:"Point>coordinates"`
-}
-
-type placemark struct {
-	id, name string
-	t        time.Time
-}
-
-var lineRE = regexp.MustCompile(`([0-9]+); \((-?[0-9.]+), (-?[0-9.]+)\)`)
-
-func readRegions(r *bufio.Reader) ([]region, error) {
-	var regions []region
+func readRegions(r *bufio.Reader) ([]*region, error) {
+	var regions []*region
 	for {
 		peek, err := r.Peek(5)
 		if err != nil {
@@ -60,25 +48,26 @@ func readRegions(r *bufio.Reader) ([]region, error) {
 	return regions, nil
 }
 
-func parseRegion(line string) (region, error) {
-	var reply region
+var lineRE = regexp.MustCompile(`([0-9]+); \((-?[0-9.]+), (-?[0-9.]+)\)`)
+
+func parseRegion(line string) (*region, error) {
 	m := lineRE.FindStringSubmatch(line)
 	if len(m) != 4 {
-		return reply, fmt.Errorf("too few matches")
+		return nil, fmt.Errorf("too few matches")
 	}
 	r, err := strconv.ParseFloat(m[1], 64)
 	if err != nil {
-		return reply, err
+		return nil, err
 	}
 	lat, err := strconv.ParseFloat(m[2], 64)
 	if err != nil {
-		return reply, err
+		return nil, err
 	}
 	long, err := strconv.ParseFloat(m[3], 64)
 	if err != nil {
-		return reply, err
+		return nil, err
 	}
-	return region{r, point{lat, long}}, nil
+	return &region{radius: r, point: point{lat, long}}, nil
 }
 
 func parsePoint(s string) point {
@@ -105,7 +94,9 @@ func (p point) distance(q point) float64 {
 	Δλ := radians(p.long - q.long)
 	a := sqr(math.Sin(Δφ/2)) + math.Cos(φ1)*math.Cos(φ2)*sqr(math.Sin(Δλ/2))
 
-	return R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+	d := R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+	fmt.Printf("%v -> %v = %.2f\n", p, q, d)
+	return d
 }
 func sqr(a float64) float64           { return a * a }
 func radians(degrees float64) float64 { return degrees / 180 * math.Pi }
@@ -114,42 +105,82 @@ func (r region) contains(p point) bool {
 	return r.distance(p) <= r.radius
 }
 
-func readXML(d *xml.Decoder, regions []region) []map[*placemark]int {
-	hits := make([]map[*placemark]int, len(regions))
-	for k := range regions {
-		hits[k] = make(map[*placemark]int)
-	}
+type Placemark struct {
+	Id    string `xml:"id,attr"`
+	Name  string `xml:"name"`
+	When  string `xml:"TimeStamp>when"`
+	Where string `xml:"Point>coordinates"`
+	Desc  string `xml:"description"`
+}
+
+type placemark struct {
+	id, name string
+	t        time.Time
+}
+
+func readMark(d *xml.Decoder) (Placemark, bool) {
+	var mark Placemark
 	for {
 		t, err := d.Token()
 		if err != nil {
 			if err != io.EOF {
 				log.Fatal(err)
 			}
-			break
+			return mark, false
 		}
 		tok, ok := t.(xml.StartElement)
 		if !(ok && tok.Name.Local == "Placemark") {
 			continue
 		}
-		var mark Placemark
 		d.DecodeElement(&mark, &tok)
 
-		if len(mark.Where) <3 || len(mark.Id) < 1 || len(mark.Where) < 3 {
+		if len(mark.Where) < 3 || len(mark.Id) < 1 {
 			continue
 		}
-		p := parsePoint(mark.Where)
-		var pm *placemark
-		for k, r := range regions {
-			if !r.contains(p) {
-				continue
-			}
-			if pm == nil {
-				pm = &placemark{mark.Id, mark.Name, parseTime(mark.When)}
-			}
-			hits[k][pm]++
+		return mark, true
+	}
+}
+
+func addToRegions(mark Placemark, regions []*region) {
+	p := parsePoint(mark.Where)
+	fmt.Printf("%.2f %.2f\n", p.lat, p.long)
+	var pm *placemark
+	for ix, r := range regions {
+		if !r.contains(p) {
+			continue
+		}
+		fmt.Println(ix)
+		confirms, err := parseConfirms(mark.Desc)
+		if err != nil {
+			log.Fatal("parseConfirms", err)
+		}
+		if confirms < r.maxConfirms {
+			continue
+		}
+		if pm == nil {
+			pm = &placemark{mark.Id, mark.Name, parseTime(mark.When)}
+		}
+		if confirms > r.maxConfirms {
+			r.maxConfirms = confirms
+			r.marks = []*placemark{pm}
+		} else {
+			r.marks = append(r.marks, pm)
 		}
 	}
-	return hits
+}
+
+var confirmRE = regexp.MustCompile(`Confirmation: <b>([0-9]+)</b> people`)
+
+func parseConfirms(s string) (int, error) {
+	m := confirmRE.FindStringSubmatch(s)
+	if len(m) < 2 {
+		return -1, fmt.Errorf("no confirmation pattern in %q", s)
+	}
+	n, err := strconv.Atoi(m[1])
+	if err != nil {
+		return -1, err
+	}
+	return n, nil
 }
 
 func parseTime(s string) time.Time {
@@ -160,24 +191,13 @@ func parseTime(s string) time.Time {
 	return t
 }
 
-func report(counts map[*placemark]int) string {
-	if len(counts) == 0 {
+func report(marks []*placemark) string {
+	if len(marks) == 0 {
 		return "None"
 	}
-	maxCount := 0
-	var maxMarks []*placemark
-	for p, c := range counts {
-		switch {
-		case c > maxCount:
-			maxCount = c
-			maxMarks = []*placemark{p}
-		case c == maxCount:
-			maxMarks = append(maxMarks, p)
-		}
-	}
-	sort.Sort(BySpecial(maxMarks))
+	sort.Sort(BySpecial(marks))
 	var names []string
-	for _, m := range maxMarks {
+	for _, m := range marks {
 		names = append(names, m.name)
 	}
 	return strings.Join(names, ", ")
@@ -210,8 +230,18 @@ func main() {
 	if err != nil {
 		log.Fatal(err, "reading regions")
 	}
-	hits := readXML(xml.NewDecoder(r), regions)
-	for _, m := range hits {
-		fmt.Println(report(m))
+	for _, r := range regions {
+		log.Println("r", *r)
+	}
+	decoder := xml.NewDecoder(r)
+	for {
+		mark, ok := readMark(decoder)
+		if !ok {
+			break
+		}
+		addToRegions(mark, regions)
+	}
+	for _, r := range regions {
+		fmt.Println(report(r.marks))
 	}
 }
