@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"math/rand"
 )
 
 var jugglersPerCircuit int
@@ -147,12 +148,33 @@ func assign() {
 }
 
 func (j *juggler) nextCircuit() string {
-	if j.prefPos >= len(j.prefs){
-		log.Fatal("prefs", j.prefs, "pos", j.prefPos)
+	if j.prefPos == len(j.prefs){
+		if j.prefPos == len(circuits) {
+			log.Fatal("prefs", j.prefs, "pos", j.prefPos)
+		}
+		j.extendPrefs()
 	}
 	name := j.prefs[j.prefPos]
 	j.prefPos++
 	return name
+}
+
+func (j *juggler) extendPrefs() {
+	got := make(map[string]bool)
+	for _, p := range j.prefs {
+		got[p] = true
+	}
+	var adds []string
+	for c := range circuits {
+		if got[c] {
+			continue
+		}
+		adds = append(adds, c)
+	}
+	
+	for _, k := range rand.Perm(len(adds)){
+		j.prefs = append(j.prefs, adds[k])
+	}
 }
 
 func main() {
