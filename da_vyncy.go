@@ -13,9 +13,9 @@ import (
 type suffix struct {
 	s    string
 	id   int
-	off  int
 	dead bool
 }
+
 type suffixes []*suffix
 
 func (a suffixes) Len() int      { return len(a) }
@@ -27,34 +27,14 @@ func (a suffixes) Less(i, j int) bool {
 	case a[j].dead:
 		return true
 	}
-	return a[i].s[a[i].off:] < a[j].s[a[j].off:]
+	return a[i].s < a[j].s
 }
 
 func (s suffix) String() string {
 	if s.dead {
 		return fmt.Sprintf("X(%d)", s.id)
 	}
-	return fmt.Sprintf("%q(%d)", s.s[s.off:], s.id)
-}
-
-// cmp compares two suffixes at a position, returns -1,0,1
-func cmp(a, b *suffix, pos int) int {
-	if pos+a.off >= len(a.s) {
-		return -1
-	}
-	if pos+b.off >= len(b.s) {
-		return 1
-	}
-	ac := a.s[pos+a.off]
-	bc := b.s[pos+b.off]
-	switch {
-	case ac < bc:
-		return -1
-	case ac > bc:
-		return 1
-	default:
-		return 0
-	}
+	return fmt.Sprintf("%q(%d-%d)", s.s, s.id, len(s.s))
 }
 
 func (ss suffixes)String() string{
@@ -66,17 +46,6 @@ func (ss suffixes)String() string{
 		fmt.Fprintf(&b, "%s\n", s)
 	}
 	return b.String()
-}
-
-func summary(ss suffixes) map[int]int {
-	counts := make(map[int]int)
-	for _, s := range ss {
-		if s.dead {
-			break
-		}
-		counts[s.id]++
-	}
-	return counts
 }
 
 var (
@@ -92,7 +61,7 @@ func assemble(s string) string {
 		fragmentList = append(fragmentList, f)
 		fragmentMap[id] = f
 		for off := 0; off < len(c); off++ {
-			s := &suffix{s: c, id: id, off: off}
+			s := &suffix{s: c[off:], id: id}
 			suffixList = append(suffixList, s)
 			suffixMap[id] = append(suffixMap[id], s)
 		}
@@ -105,30 +74,87 @@ func assemble(s string) string {
 		sort.Sort(suffixList)
 		log.Println("fragments:\n", fragmentList)
 		// log.Println("suffixes", summary(suffixList))
-		fid, sid, overlap := bestMatch()
-		fid2, sid2, overlap2 := dumbMatch()
-		if !(overlap == overlap2) {
-			log.Fatalf("smart: %s,%s{%d}, dumb:%s,%s{%d}",
-				fragmentMap[sid], fragmentMap[fid], overlap,
-				fragmentMap[sid2], fragmentMap[fid2], overlap2)
+		f, s := bestMatch()
+		f2, s2 := dumbMatch()
+		if len(s.s) != len(s2.s) {
+			log.Fatalf("smart: %s,%s\ndumb:%s,%s", f, s, f2, s2)
 		}
-		merged = merge(bestMatch())
+		merged = merge(s, f)
 	}
 	return merged.s
 }
 
-func dumbMatch() (fid, sid, overlap int) {
-	for _, f := range fragmentList {
-		if f.dead {
+func bestMatch() (bestF, bestS *suffix) {
+	maxOverlap := 0
+
+	fp, sp := 0, 0
+	for fp < len(fragmentList) && sp < len(suffixList) {
+		f := fragmentList[fp]
+		s := suffixList[sp]
+		
+		if f.id == s.id {
+			sp++
+			continue
+		}		
+		if f.dead || s.dead {
+			return
+		}
+		if len(s.s) > maxOverlap && strings.HasPrefix(f.s, s.s) {
+			maxOverlap, bestF, bestS = len(s.s), f, s
+		}
+		if s.s < f.s { sp++ } else { fp++ }
+	}
+	return
+}
+
+//  suffix: [xyz]COMMON, fragment: COMMONabc
+// Afterwards: Left: xyzCOMMONabc, right: dead
+func merge(suffix, fragment *suffix) *suffix{
+	suffixFragment := fragmentMap[suffix.id]
+	overlap := len(suffix.s)
+	trailingUncommon := fragment.s[overlap:]
+	suffixFragment.s += trailingUncommon
+	fragment.dead = true
+	
+	add := len(suffixFragment.s) - len(suffix.s)
+	log.Printf(`merge "%s%s"(%d), "%s%s"(%d)`, 
+		suffixFragment.s[:add], strings.ToUpper(suffix.s), suffix.id, 
+		strings.ToUpper(fragment.s[:overlap]), fragment.s[overlap:], fragment.id)
+		
+	if !strings.HasPrefix(fragment.s, suffix.s) {
+		log.Fatal("hoo boy")
+	}
+
+	for _, s := range suffixMap[suffix.id] {
+		s.s += trailingUncommon
+	}
+	for _, s := range suffixMap[fragment.id] {
+		if len(s.s) > len(trailingUncommon) {
+			s.dead = true
 			continue
 		}
+		s.id = suffix.id
+		suffixMap[suffix.id] = append(suffixMap[suffix.id], s)
+	}
+	return suffixFragment
+}
+
+func dumbMatch() (bestF, bestS *suffix) {
+	maxOverlap := 0
+	for _, f := range fragmentList {
+		if f.dead {
+			return
+		}
 		for _, g := range fragmentList {
-			if g.dead || f== g {
+			if g.dead {
+				break
+			}
+			if f== g {
 				continue
 			}
 			o := dumbOverlap(f.s, g.s)
-			if o > overlap {
-				fid, sid, overlap = g.id, f.id, o
+			if o > maxOverlap {
+				bestF, bestS, maxOverlap = g, &suffix{s:f.s[len(f.s)-o:] , id:f.id}, o
 			}
 		}
 	}
@@ -149,88 +175,6 @@ func dumbOverlap(a,b string) int {
 	return overlap
 }
 
-func merge(fid, sid, overlap int) *suffix{
-	prefix := fragmentMap[fid]
-	suffix := fragmentMap[sid]
-
-	add := len(suffix.s) - overlap
-	log.Printf(`merge "%s%s"(%d), "%s%s"(%d)`, 
-		suffix.s[:add], strings.ToUpper(suffix.s[add:]), sid, 
-		strings.ToUpper(prefix.s[:overlap]), prefix.s[overlap:],fid)
-	if suffix.s[add:] != prefix.s[:overlap] {
-		for _, s := range suffixMap[sid]{
-			log.Println("s:",s)
-		}
-		log.Fatal("hoo boy")
-	}
-	suffix.s += prefix.s[overlap:]
-	prefix.dead = true
-
-	for _, s := range suffixMap[sid] {
-		s.s = suffix.s
-	}
-	for _, s := range suffixMap[fid] {
-		if s.off < overlap {
-			s.dead = true
-		}
-		s.s = suffix.s
-		s.id = sid
-		s.off += add
-	}
-	suffixMap[sid] = append(suffixMap[sid], suffixMap[fid]...)
-	return suffix
-}
-
-func bestMatch() (fid, sid, best int) {
-	fp, sp := 0, 0
-	defer func() {
-		if fid == sid {
-			log.Fatal("WTF???", fid, sid)
-		}
-	}()
-outer:
-	for fp < len(fragmentList) && sp < len(suffixList) {
-		f := fragmentList[fp]
-		s := suffixList[sp]
-		
-		if f.id == s.id {
-			sp++
-			continue
-		}
-		if f.id == 11 || s.id ==11 || f.id == 21 || s.id == 21 {
-			log.Printf("f:%s, s:%s", f, s)
-		}
-		
-		if f.dead || s.dead {
-			return
-		}
-		p := 0
-		for {
-			switch cmp(f, s, p) {
-			case -1:
-				fp++
-				continue outer
-			case 1:
-				sp++
-				continue outer
-			case 0:
-				p++
-				c := ""
-				if s.off +p == len(s.s){
-					c="!"
-				}
-				if p>20{
-					log.Printf("%q{%d}%s\ts:%s\tf:%s", f.s[:p], p, c, s, f)
-					log.Println(s.off, p, len(s.s))
-				}
-				if p > best && s.off + p == len(s.s){
-					best, fid, sid = p, f.id, s.id
-				}
-			}
-		}
-	}
-	return
-}
 
 func main() {
 	if len(os.Args) != 2 {
