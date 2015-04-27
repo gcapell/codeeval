@@ -28,17 +28,6 @@ func necklaces(size uint) int {
 	return solutions(1)
 }
 
-func remaining(n uint64) []int {
-	var reply []int
-	for pos := 0; n != 0; pos, n = pos+1, n>>1 {
-		if n&1 != 0 {
-			reply = append(reply, pos)
-		}
-	}
-
-	return reply
-}
-
 func solutions(n uint) int {
 	nums &= ^(1 << n)
 	defer func() {
