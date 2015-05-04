@@ -70,8 +70,8 @@ func assemble(s string) string {
 	var merged *suffix
 	merges := len(fragmentList) - 1
 	for j := 0; j < merges; j++ {
-		sort.Sort(fragmentList)
-		sort.Sort(suffixList)
+		sortAndTrim(&suffixList)
+		sortAndTrim(&fragmentList)
 		log.Println("fragments:\n", fragmentList)
 		// log.Println("suffixes", summary(suffixList))
 		f, s := bestMatch()
@@ -84,46 +84,89 @@ func assemble(s string) string {
 	return merged.s
 }
 
+func sortAndTrim(ss *suffixes){
+	sort.Sort(*ss)
+	k := len(*ss) -1
+	for (*ss)[k].dead {
+		k--
+	}
+	*ss = ([]*suffix)(*ss)[:k+1]
+}
+
 func bestMatch() (bestF, bestS *suffix) {
 	maxOverlap := 0
 
-	fp, sp := 0, 0
-	for fp < len(fragmentList) && sp < len(suffixList) {
-		f := fragmentList[fp]
-		s := suffixList[sp]
-		
-		if f.id == s.id {
-			sp++
+	for _, f := range fragmentList {
+		if f.dead {
+			break
+		}
+		if len(f.s) <= maxOverlap {
 			continue
-		}		
-		if f.dead || s.dead {
-			return
 		}
-		if len(s.s) > maxOverlap && strings.HasPrefix(f.s, s.s) {
-			maxOverlap, bestF, bestS = len(s.s), f, s
+		if s := bestWordMatch(f, maxOverlap); s != nil {
+			bestF, bestS, maxOverlap = f, s, len(s.s)
 		}
-		if s.s < f.s { sp++ } else { fp++ }
 	}
-	return
+	return bestF, bestS
+}
+
+// Find largest word in  (sorted) suffixList (>=n chars)
+// which is a prefix of 's'.  
+func bestWordMatch(f *suffix, n int) *suffix{
+	
+	pos := sort.Search(len(suffixList), func(p int)bool{
+		return suffixList[p].s>=f.s[:n]
+	})
+	var found *suffix
+	for ;pos < len(suffixList); pos++ {
+		p := suffixList[pos]
+		// do the first 'n' characters match?
+		if ! strings.HasPrefix(p.s, f.s[:n]) {
+			break
+		}
+		if p.id == f.id {
+			continue
+		}
+		// is it a full match?
+		if strings.HasPrefix(f.s[n:], p.s[n:]) {
+			found = p
+			n = len(p.s)
+		}
+	}
+	if found != nil {
+		log.Printf("%q (id:%d) has prefix %q (from id:%d)", f.s, f.id, found.s, found.id )
+		if ! strings.HasPrefix(f.s, found.s) {
+			log.Fatal(f.s, found.s)
+		}
+	}
+	return found
 }
 
 //  suffix: [xyz]COMMON, fragment: COMMONabc
 // Afterwards: Left: xyzCOMMONabc, right: dead
 func merge(suffix, fragment *suffix) *suffix{
 	suffixFragment := fragmentMap[suffix.id]
+	log.Printf("merge(%s(%s), %s)", suffix, suffixFragment.s, fragment)
+	if ! strings.HasSuffix(suffixFragment.s, suffix.s) {
+		log.Fatal("expected %q to have suffix %q", suffixFragment.s, suffix.s)
+	}
 	overlap := len(suffix.s)
 	trailingUncommon := fragment.s[overlap:]
-	suffixFragment.s += trailingUncommon
-	fragment.dead = true
 	
 	add := len(suffixFragment.s) - len(suffix.s)
-	log.Printf(`merge "%s%s"(%d), "%s%s"(%d)`, 
+	log.Printf("suffixFragment: %q(%d), suffix:%q(%d), add:%d",
+		suffixFragment.s, len(suffixFragment.s),
+		suffix.s, len(suffix.s), 
+		add)
+	log.Printf(`merge "%s%s"(%d), "%s%s"(%d)`,
 		suffixFragment.s[:add], strings.ToUpper(suffix.s), suffix.id, 
 		strings.ToUpper(fragment.s[:overlap]), fragment.s[overlap:], fragment.id)
 		
 	if !strings.HasPrefix(fragment.s, suffix.s) {
 		log.Fatal("hoo boy")
 	}
+	suffixFragment.s += trailingUncommon
+	fragment.dead = true
 
 	for _, s := range suffixMap[suffix.id] {
 		s.s += trailingUncommon
