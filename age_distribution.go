@@ -8,21 +8,30 @@ import (
 	"strconv"
 )
 
-
-
 func age(line string) string {
 	n, err := strconv.Atoi(line)
-	if err != nil {panic(err)}
-	switch  {
-		case n<0 || n > 100: return "This program is for humans"
-		case n<=2: return "Still in Mama's arms"
-		case n<=4: return "Preschool Maniac"
-		case n<=11: return "Elementary school"
-		case n<=14: return "Middle school"
-		case n <= 18: return "High school"
-		case n<=22: return "College"
-		case n<=65: return "Working for the man"
-		default: return "The Golden Years"
+	if err != nil {
+		panic(err)
+	}
+	switch {
+	case n < 0 || n > 100:
+		return "This program is for humans"
+	case n <= 2:
+		return "Still in Mama's arms"
+	case n <= 4:
+		return "Preschool Maniac"
+	case n <= 11:
+		return "Elementary school"
+	case n <= 14:
+		return "Middle school"
+	case n <= 18:
+		return "High school"
+	case n <= 22:
+		return "College"
+	case n <= 65:
+		return "Working for the man"
+	default:
+		return "The Golden Years"
 	}
 }
 
