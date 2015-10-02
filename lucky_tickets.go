@@ -4,11 +4,12 @@ import (
 	"bufio"
 	"fmt"
 	"log"
+	"math/big"
 	"os"
 	"strconv"
 )
 
-func lucky(line string) int64 {
+func lucky(line string) *big.Int {
 	n, err := strconv.Atoi(line)
 	if err != nil {
 		log.Fatal(err)
@@ -16,19 +17,22 @@ func lucky(line string) int64 {
 	return sumSquared(exp(n / 2))
 }
 
-type poly []int64
+type poly []*big.Int
 
-func sumSquared(p poly) int64 {
-	var reply int64
+func sumSquared(p poly) *big.Int {
+	reply, square := big.NewInt(0), big.NewInt(0)
 	for _, n := range p {
-		reply += n * n
+		reply.Add(reply, square.Mul(n, n))
 	}
 	return reply
 }
 
-var expCache = map[int]poly{
-	1: []int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-}
+var (
+	one      = big.NewInt(1)
+	expCache = map[int]poly{
+		1: []*big.Int{one, one, one, one, one, one, one, one, one, one},
+	}
+)
 
 func exp(n int) poly {
 	if r, ok := expCache[n]; ok {
@@ -55,13 +59,17 @@ func expWork(n int) poly {
 }
 
 func mul(a, b poly) poly {
-	reply := make([]int64, len(a)+len(b) -1)
+	reply := make([]*big.Int, len(a)+len(b)-1)
+	for j := range reply {
+		reply[j] = big.NewInt(0)
+	}
+	prod := big.NewInt(0)
 	for bPos, bVal := range b {
 		for aPos, aVal := range a {
-			reply[aPos+bPos] += aVal * bVal
+			p := reply[aPos+bPos]
+			p.Add(p, prod.Mul(aVal, bVal))
 		}
 	}
-	fmt.Println("mul", a, b, "=", reply)
 	return reply
 }
 
