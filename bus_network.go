@@ -2,23 +2,24 @@ package main
 
 import (
 	"bufio"
+	"container/heap"
 	"fmt"
 	"log"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
-	"container/heap"
 )
 
 const (
 	nextStop     = 7
 	changeRoute  = 12
 	infiniteCost = 9999999
+	debug = false
 )
 
 type node struct {
-	name string
+	name   string
 	next   map[*node]int
 	cost   int
 	index  int
@@ -26,16 +27,19 @@ type node struct {
 }
 
 func newNode(name string) *node {
-	return &node{name:name,
-		next:make(map[*node]int), 
-		cost:infiniteCost,
-		index: -1, 
-		onHeap:false}
+	return &node{name: name,
+		next:   make(map[*node]int),
+		cost:   infiniteCost,
+		index:  -1,
+		onHeap: false}
 }
 
 func network(line string) string {
 	chunks := strings.Split(line, ";")
-	src, dst := parseSrcDst(chunks[0])
+	var src,dst int
+	if _, err := fmt.Sscanf(chunks[0], "(%d,%d)", &src, &dst); err != nil {
+		log.Fatal(err)
+	}
 	idToNode = make(map[int][]*node)
 	for _, c := range chunks[1:] {
 		addNodes(parseRoute(c))
@@ -52,6 +56,7 @@ func network(line string) string {
 	for _, n := range idToNode[dst] {
 		n.next[finish] = 0
 	}
+	dot(start)
 	if cost, ok := dijkstraCost(start, finish); ok {
 		return strconv.Itoa(cost)
 	} else {
@@ -59,9 +64,28 @@ func network(line string) string {
 	}
 }
 
+func dot(start *node) {
+	fmt.Println("digraph G {")
+	for o, cost := range start.next {
+		fmt.Printf("%s -> %s [ label = \"%d\" ];\n", start.name, o.name, cost)
+	}
+	
+	for _, ns := range idToNode {
+		for _, n := range ns {
+			if len(n.next) == 0 {
+				log.Fatal("no links from:", *n)
+			}
+			for o, cost := range n.next {
+				fmt.Printf("%s -> %s [ label = \"%d\" ];\n", n.name, o.name, cost)
+			}
+		}
+	}
+	fmt.Println("}")
+}
+
 type PriorityQueue []*node
 
-func (pq PriorityQueue) Len() int          { return len(pq) }
+func (pq PriorityQueue) Len() int { return len(pq) }
 
 func (pq PriorityQueue) Less(i, j int) bool { return pq[i].cost < pq[j].cost }
 
@@ -83,7 +107,7 @@ func (pq *PriorityQueue) Pop() interface{} {
 	old := *pq
 	n := len(old)
 	item := old[n-1]
-	item.index = -1 // for safety
+	item.index = -1     // for safety
 	item.onHeap = false // for safetyß
 	*pq = old[0 : n-1]
 	return item
@@ -110,6 +134,8 @@ func dijkstraCost(start, finish *node) (int, bool) {
 			log.Println("problem", pq)
 		}
 		n := heap.Pop(&pq).(*node)
+		n.onHeap = false
+		fmt.Println("popped", n.name, n.cost)
 		if n == finish {
 			return n.cost, true
 		}
@@ -122,10 +148,10 @@ func dijkstraCost(start, finish *node) (int, bool) {
 
 var idToNode map[int][]*node
 
-func addNodes(ns []int) {
+func addNodes(route int, ns []int) {
 	var prev, first *node
 	for _, id := range ns {
-		np := newNode(strconv.Itoa(id))
+		np := newNode(fmt.Sprintf("%d.%d", route, id))
 		for _, o := range idToNode[id] {
 			o.next[np] = changeRoute
 			np.next[o] = changeRoute
@@ -141,31 +167,21 @@ func addNodes(ns []int) {
 	prev.next[first] = nextStop
 }
 
-var routeExp = regexp.MustCompile(`R[0-9]+=\[(.*)\]`)
+var routeExp = regexp.MustCompile(`R([0-9]+)=\[(.*)\]`)
 
-func parseRoute(s string) []int {
+// parseRoute('R4=[1,2,3]') -> 4,[1,2,3]
+func parseRoute(s string) (int,[]int) {
 	s = strings.TrimSpace(s)
 	m := routeExp.FindStringSubmatch(s)
-	if len(m) != 2 {
+	if len(m) != 3 {
 		log.Fatalf("addRoute %q %v", s, m)
 	}
-	chunks := strings.Split(m[1], ",")
+	chunks := strings.Split(m[2], ",")
 	var nodes []int
 	for _, c := range chunks {
 		nodes = append(nodes, atoi(c))
 	}
-	return nodes
-}
-
-var srcDstRegexp = regexp.MustCompile(`\(([0-9]+),([0-9]+)\)`)
-
-func parseSrcDst(s string) (int, int) {
-
-	m := srcDstRegexp.FindStringSubmatch(s)
-	if len(m) != 3 {
-		log.Fatalf("parseSrcDst %q", s)
-	}
-	return atoi(m[1]), atoi(m[2])
+	return atoi(m[1]), nodes
 }
 
 func atoi(s string) int {
