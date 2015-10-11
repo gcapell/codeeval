@@ -15,7 +15,7 @@ const (
 	nextStop     = 7
 	changeRoute  = 12
 	infiniteCost = 9999999
-	debug = false
+	debug        = false
 )
 
 type node struct {
@@ -36,7 +36,7 @@ func newNode(name string) *node {
 
 func network(line string) string {
 	chunks := strings.Split(line, ";")
-	var src,dst int
+	var src, dst int
 	if _, err := fmt.Sscanf(chunks[0], "(%d,%d)", &src, &dst); err != nil {
 		log.Fatal(err)
 	}
@@ -64,12 +64,21 @@ func network(line string) string {
 	}
 }
 
+func dprint(args ...interface{}) {
+	if debug {
+		fmt.Println(args...)
+	}
+}
+
 func dot(start *node) {
+	if !debug {
+		return
+	}
 	fmt.Println("digraph G {")
 	for o, cost := range start.next {
 		fmt.Printf("%s -> %s [ label = \"%d\" ];\n", start.name, o.name, cost)
 	}
-	
+
 	for _, ns := range idToNode {
 		for _, n := range ns {
 			if len(n.next) == 0 {
@@ -135,7 +144,7 @@ func dijkstraCost(start, finish *node) (int, bool) {
 		}
 		n := heap.Pop(&pq).(*node)
 		n.onHeap = false
-		fmt.Println("popped", n.name, n.cost)
+		dprint("popped", n.name, n.cost)
 		if n == finish {
 			return n.cost, true
 		}
@@ -149,7 +158,7 @@ func dijkstraCost(start, finish *node) (int, bool) {
 var idToNode map[int][]*node
 
 func addNodes(route int, ns []int) {
-	var prev, first *node
+	var prev *node
 	for _, id := range ns {
 		np := newNode(fmt.Sprintf("%d.%d", route, id))
 		for _, o := range idToNode[id] {
@@ -159,18 +168,16 @@ func addNodes(route int, ns []int) {
 		idToNode[id] = append(idToNode[id], np)
 		if prev != nil {
 			prev.next[np] = nextStop
-		} else {
-			first = np
+			np.next[prev] = nextStop
 		}
 		prev = np
 	}
-	prev.next[first] = nextStop
 }
 
 var routeExp = regexp.MustCompile(`R([0-9]+)=\[(.*)\]`)
 
 // parseRoute('R4=[1,2,3]') -> 4,[1,2,3]
-func parseRoute(s string) (int,[]int) {
+func parseRoute(s string) (int, []int) {
 	s = strings.TrimSpace(s)
 	m := routeExp.FindStringSubmatch(s)
 	if len(m) != 3 {
