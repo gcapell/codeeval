@@ -38,17 +38,32 @@ func (p point) String() string {
 }
 
 type direction struct {
-	name       string
-	dRow, dCol int
-	symbol     byte
+	name        string
+	dRow, dCol  int
+	symbol      byte
+	left, right *direction
 }
 
 var (
-	ne = direction{"ne", -1, 1, slash}
-	se = direction{"se", 1, 1, slosh}
-	sw = direction{"sw", 1, -1, slash}
-	nw = direction{"nw", -1, 1, slosh}
+	ne = &direction{"ne", -1, 1, slash, nil, nil}
+	se = &direction{"se", 1, 1, slosh, nil, nil}
+	sw = &direction{"sw", 1, -1, slash, nil, nil}
+	nw = &direction{"nw", -1, -1, slosh, nil, nil}
 )
+
+func init() {
+	ne.left = nw
+	ne.right = se
+
+	se.left = sw
+	se.right = ne
+
+	sw.left = se
+	sw.right = nw
+
+	nw.left = ne
+	nw.right = sw
+}
 
 const (
 	ttl = 3 // 19? 20?
@@ -56,7 +71,7 @@ const (
 
 type cursor struct {
 	point
-	d         direction
+	d         *direction
 	travelled int
 	r         *room
 }
@@ -66,30 +81,58 @@ func die(args ...interface{}) {
 	os.Exit(1)
 }
 
-func (c *cursor) move() {
+func (c cursor) left() cursor {
+	c.d = c.d.left
+	return c
+}
+
+func (c cursor) right() cursor {
+	c.d = c.d.right
+	return c
+}
+
+func (c cursor) corner() bool {
+	return (c.row == 0 || c.row == size-1) && (c.col == 0 || c.col == size-1)
+}
+
+func (c *cursor) reflect() {
+	switch {
+	case c.row == 0
+}
+
+func (c cursor) move() []cursor {
 	c.travelled++
 	c.row += c.d.dRow
 	c.col += c.d.dCol
+reflected:
 	switch c.r[c.row][c.col] {
 	case ' ':
 		c.r[c.row][c.col] = c.d.symbol
 	case '*':
-		die("* unimplemented")
+		return []cursor{c, c.left(), c.right()}
 	case '#':
-		die("# unimplemented")
+		if c.corner() {
+			return nil
+		}
+		c.reflect()
+		goto reflected
 	case 'o':
-		die("o unimplemented")
+		return nil
 	case c.d.symbol, 'x':
 	default:
 		c.r[c.row][c.col] = 'x'
-
 	}
+	if c.travelled > ttl {
+		return nil
+	}
+	return []cursor{c}
 }
 
 func (c cursor) String() string {
-	return fmt.Sprintf("%s,%s,%d\n%s", c.point, c.d.name, c.travelled, c.r)
+	return fmt.Sprintf("%s,%s,%d", c.point, c.d.name, c.travelled)
 }
-func startDirection(p point, c byte) direction {
+
+func startDirection(p point, c byte) *direction {
 	switch {
 	case p.col == 0:
 		return ifSlash(c, ne, se)
@@ -104,7 +147,7 @@ func startDirection(p point, c byte) direction {
 	return ne
 }
 
-func ifSlash(c byte, a, b direction) direction {
+func ifSlash(c byte, a, b *direction) *direction {
 	if c == slash {
 		return a
 	}
@@ -124,11 +167,15 @@ func (r *room) start() cursor {
 }
 
 func (r *room) sim() {
-	c := r.start()
-	fmt.Println(c)
-	for c.travelled < ttl {
-		c.move()
-		fmt.Println(c)
+	cursors := []cursor{r.start()}
+	for len(cursors) > 0 {
+		fmt.Println(cursors)
+		var next []cursor
+		for _, c := range cursors {
+			next = append(next, c.move()...)
+		}
+		cursors = next
+		fmt.Println(r)
 	}
 }
 
