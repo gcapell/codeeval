@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"log"
 	"os"
@@ -10,12 +11,32 @@ import (
 )
 
 func huffman(line string) string {
-	counts := count(line)
-	fmt.Println("counts:", counts)
-	root := treeOf(counts)
-	root.prettyPrint(0)
-	return ""
+	return report(treeOf(count(line)).codes(""))
 }
+
+func report(codes []code) string {
+	sort.Sort(byRune(codes))
+
+	var reply bytes.Buffer
+	for pos, c := range codes {
+		if pos != 0 {
+			fmt.Fprint(&reply, " ")
+		}
+		fmt.Fprintf(&reply, "%s: %s;", string(c.r), c.code)
+	}
+	return reply.String()
+}
+
+type code struct {
+	r    rune
+	code string
+}
+
+type byRune []code
+
+func (a byRune) Len() int           { return len(a) }
+func (a byRune) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byRune) Less(i, j int) bool { return a[i].r < a[j].r }
 
 func treeOf(leaf []*node) *node {
 	var internals []*node
@@ -42,7 +63,7 @@ func smaller(a, b *[]*node) *[]*node {
 	if len(*b) == 0 {
 		return a
 	}
-	if (*a)[0].n < (*b)[0].n {
+	if (*a)[0].lessThan((*b)[0]) {
 		return a
 	}
 	return b
@@ -72,11 +93,35 @@ func (n *node) prettyPrint(indent int) {
 	n.r.prettyPrint(indent + 4)
 }
 
+func (n node) codes(prefix string) []code {
+	if n.l != nil {
+		return append(n.l.codes(prefix+"0"), n.r.codes(prefix+"1")...)
+	}
+	return []code{code{n.c, prefix}}
+}
+
+func (n *node) lessThan(o *node) bool {
+	// different priority?
+	if n.n != o.n {
+		return n.n < o.n
+	}
+	// node vs symbol?
+	if (n.l == nil) != (o.l == nil) {
+		return n.l != nil
+	}
+	// compare symbols by character
+	if n.l == nil {
+		return n.c < o.c
+	}
+	// compare nodes by left child
+	return n.l.lessThan(o.l)
+}
+
 type byCount []*node
 
 func (a byCount) Len() int           { return len(a) }
 func (a byCount) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byCount) Less(i, j int) bool { return a[i].n < a[j].n }
+func (a byCount) Less(i, j int) bool { return a[i].lessThan(a[j]) }
 
 func count(line string) []*node {
 	counter := make(map[rune]int)
